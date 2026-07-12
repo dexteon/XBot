@@ -360,8 +360,8 @@ class XBotWindow(QMainWindow):
         cfg = self.config
         cfg.model.name = self.model_combo.currentData() or self.model_combo.currentText()
         cfg.model.context_window = self.context_spin.value()
-        cfg.model.temperature = float(self.temp_spin.text or "0.3")
-        cfg.model.top_p = float(self.top_p_spin.text or "0.9")
+        cfg.model.temperature = float(self.temp_spin.text() or "0.3")
+        cfg.model.top_p = float(self.top_p_spin.text() or "0.9")
         cfg.system_prompt = self.prompt_edit.toPlainText()
         cfg.filters.search_terms = [t.strip() for t in self.search_terms_edit.text().split(",") if t.strip()]
         cfg.filters.exclude_terms = [t.strip() for t in self.exclude_terms_edit.text().split(",") if t.strip()]
