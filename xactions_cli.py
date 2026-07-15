@@ -126,15 +126,21 @@ class XActions:
     # ── Health ─────────────────────────────────────────────────────
 
     def check_auth(self) -> bool:
-        """Verify auth is still valid."""
+        """Verify auth is still valid by checking a real account."""
         try:
-            output, rc = self._run(["profile", "_"], timeout=15)
-            # Even if user doesn't exist, auth worked if no auth error
-            return rc == 0 or "auth" not in output.lower()
+            output, rc = self._run(["profile", "TheRandomNote"], timeout=15)
+            # If we got profile data back, auth is working
+            if rc == 0 and "Followers" in output:
+                return True
+            if "auth" in output.lower() or "login" in output.lower() or "cookie" in output.lower():
+                return False
+            # If it returned data but not the expected format, auth probably still works
+            return rc == 0
         except XActionsAuthError:
             return False
         except XActionsError:
-            return False
+            # Can't tell — don't block the bot, let it try and fail naturally
+            return True
 
     # ── Parsing ────────────────────────────────────────────────────
 

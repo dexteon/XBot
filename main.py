@@ -490,7 +490,6 @@ class XBotWindow(QMainWindow):
 
     def _run_loop(self):
         """Main bot loop running in background thread."""
-        interval = self.config.schedule.interval_minutes
         while self.engine and self.engine._running:
             try:
                 result = self.engine.run_once()
@@ -506,6 +505,7 @@ class XBotWindow(QMainWindow):
                 self._threaded_log(f"Fatal error: {e}", "ERROR")
 
             # Wait for next interval
+            interval = self.config.schedule.interval_minutes
             for _ in range(interval * 60):
                 if not self.engine or not self.engine._running:
                     break
