@@ -65,7 +65,7 @@ class BotEngine:
 
     # ── Health Checks ──────────────────────────────────────────────
 
-    def _health_check(self) -> tuple[bool, str]:
+    def _health_check(self, skip_schedule: bool = False) -> tuple[bool, str]:
         """Verify prerequisites before running."""
         # Ollama
         if not self.classifier.health_check(self.config.model.name):
@@ -76,13 +76,14 @@ class BotEngine:
                 return False, "XActions auth expired — re-login needed (xactions login)"
         except XActionsError:
             return False, "XActions not accessible"
-        # Active hours
-        now = datetime.now()
-        start = self._parse_time(self.config.schedule.active_hours_start)
-        end = self._parse_time(self.config.schedule.active_hours_end)
-        current_min = now.hour * 60 + now.minute
-        if not (start <= current_min <= end):
-            return False, f"Outside active hours ({self.config.schedule.active_hours_start}-{self.config.schedule.active_hours_end})"
+        # Active hours (skip during dry runs)
+        if not skip_schedule:
+            now = datetime.now()
+            start = self._parse_time(self.config.schedule.active_hours_start)
+            end = self._parse_time(self.config.schedule.active_hours_end)
+            current_min = now.hour * 60 + now.minute
+            if not (start <= current_min <= end):
+                return False, f"Outside active hours ({self.config.schedule.active_hours_start}-{self.config.schedule.active_hours_end})"
 
         return True, ""
 
@@ -108,8 +109,8 @@ class BotEngine:
     def _execute(self) -> RunResult:
         result = RunResult(status=RunStatus.OK)
 
-        # 1. Health check
-        ok, msg = self._health_check()
+        # 1. Health check (skip active hours during dry run)
+        ok, msg = self._health_check(skip_schedule=self._dry_run)
         if not ok:
             self._log(msg, "ERROR")
             result.status = RunStatus.SKIPPED

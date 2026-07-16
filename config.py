@@ -66,8 +66,8 @@ class RateLimit:
 class Schedule:
     interval_minutes: int = 60
     enabled: bool = True
-    active_hours_start: str = "06:00"
-    active_hours_end: str = "23:00"
+    active_hours_start: str = "00:00"
+    active_hours_end: str = "23:59"
 
 
 @dataclass
