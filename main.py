@@ -223,6 +223,53 @@ class XBotWindow(QMainWindow):
         self.max_day_spin.setValue(50)
         layout.addWidget(self.max_day_spin, row, 3)
 
+        # Trending section
+        row += 1
+        self.trending_cb = QCheckBox("Use Trending Topics (RapidAPI + XActions)")
+        self.trending_cb.setChecked(True)
+        layout.addWidget(self.trending_cb, row, 1, 1, 3)
+
+        row += 1
+        self.cyber_trends_cb = QCheckBox("Cyber-filter trends only")
+        self.cyber_trends_cb.setChecked(True)
+        layout.addWidget(self.cyber_trends_cb, row, 1)
+
+        layout.addWidget(QLabel("Max trends to search:"), row, 2)
+        self.max_trends_spin = QSpinBox()
+        self.max_trends_spin.setRange(1, 50)
+        self.max_trends_spin.setValue(10)
+        layout.addWidget(self.max_trends_spin, row, 3)
+
+        # Feed mode section
+        row += 1
+        self.feed_mode_cb = QCheckBox("Feed Mode (scan accounts you follow)")
+        self.feed_mode_cb.setChecked(True)
+        layout.addWidget(self.feed_mode_cb, row, 1, 1, 3)
+
+        row += 1
+        layout.addWidget(QLabel("Max feed accounts:"), row, 0)
+        self.max_feed_spin = QSpinBox()
+        self.max_feed_spin.setRange(1, 500)
+        self.max_feed_spin.setValue(50)
+        layout.addWidget(self.max_feed_spin, row, 1)
+
+        self.feed_videos_cb = QCheckBox("Videos only (feed)")
+        self.feed_videos_cb.setChecked(True)
+        layout.addWidget(self.feed_videos_cb, row, 2)
+
+        row += 1
+        layout.addWidget(QLabel("Feed min likes:"), row, 0)
+        self.feed_min_likes_spin = QSpinBox()
+        self.feed_min_likes_spin.setRange(0, 100000)
+        self.feed_min_likes_spin.setValue(50)
+        layout.addWidget(self.feed_min_likes_spin, row, 1)
+
+        layout.addWidget(QLabel("Feed min RTs:"), row, 2)
+        self.feed_min_rts_spin = QSpinBox()
+        self.feed_min_rts_spin.setRange(0, 100000)
+        self.feed_min_rts_spin.setValue(10)
+        layout.addWidget(self.feed_min_rts_spin, row, 3)
+
         return grp
 
     def _build_schedule_group(self) -> QGroupBox:
@@ -381,6 +428,16 @@ class XBotWindow(QMainWindow):
         cfg.schedule.enabled = self.schedule_enabled_cb.isChecked()
         cfg.schedule.active_hours_start = self.start_time_edit.text()
         cfg.schedule.active_hours_end = self.end_time_edit.text()
+        # Trending
+        cfg.filters.use_trending = self.trending_cb.isChecked()
+        cfg.filters.cyber_trends_only = self.cyber_trends_cb.isChecked()
+        cfg.filters.max_trending_searches = self.max_trends_spin.value()
+        # Feed mode
+        cfg.filters.use_feed_mode = self.feed_mode_cb.isChecked()
+        cfg.filters.max_feed_accounts = self.max_feed_spin.value()
+        cfg.filters.feed_videos_only = self.feed_videos_cb.isChecked()
+        cfg.filters.feed_min_likes = self.feed_min_likes_spin.value()
+        cfg.filters.feed_min_retweets = self.feed_min_rts_spin.value()
         return cfg
 
     # ── Actions ────────────────────────────────────────────────────

@@ -29,6 +29,17 @@ class Filters:
     max_age_hours: int = 24
     min_likes: int = 0
     min_retweets: int = 0
+    # Trending
+    use_trending: bool = True
+    use_rapidapi: bool = True
+    cyber_trends_only: bool = True
+    max_trending_searches: int = 10
+    # Feed mode
+    use_feed_mode: bool = True
+    max_feed_accounts: int = 50
+    feed_videos_only: bool = True
+    feed_min_likes: int = 50
+    feed_min_retweets: int = 10
 
 
 @dataclass

@@ -219,10 +219,10 @@ class BotEngine:
     # ── Pipeline Steps ─────────────────────────────────────────────
 
     def _fetch_tweets(self) -> list[Tweet]:
-        """Fetch from search terms + watched accounts."""
+        """Fetch from search terms + watched accounts + trending + feed."""
         all_tweets = []
 
-        # Search by terms
+        # 1. Search by terms
         for term in self.config.filters.search_terms:
             if not self._running:
                 break
@@ -235,7 +235,7 @@ class BotEngine:
             except XActionsError as e:
                 self._log(f"Search failed for '{term}': {e}", "WARN")
 
-        # Get tweets from watched accounts
+        # 2. Get tweets from watched accounts
         for account in self.config.filters.watched_accounts:
             if not self._running:
                 break
@@ -248,6 +248,63 @@ class BotEngine:
             except XActionsError as e:
                 self._log(f"Failed to get tweets from {account}: {e}", "WARN")
 
+        # 3. Trending topics (if enabled)
+        if self.config.filters.use_trending:
+            try:
+                from trending import get_trends, filter_trends_for_cyber
+                self._log("Fetching trending topics...")
+                trends = get_trends(
+                    use_rapidapi=self.config.filters.use_rapidapi,
+                    use_xactions=True,
+                )
+                if trends:
+                    self._log(f"Got {len(trends)} trending topics")
+                    # Filter to cyber-relevant if enabled
+                    if self.config.filters.cyber_trends_only:
+                        trends = filter_trends_for_cyber(trends)
+                        self._log(f"Cyber-filtered: {len(trends)} relevant trends")
+
+                    # Search top N trends
+                    max_trends = min(len(trends), self.config.filters.max_trending_searches)
+                    for trend in trends[:max_trends]:
+                        if not self._running:
+                            break
+                        try:
+                            tweets = self.xactions.search(trend, limit=20)
+                            all_tweets.extend(tweets)
+                            self._log(f"  Trend '{trend}': {len(tweets)} tweets")
+                        except XActionsError as e:
+                            self._log(f"  Trend '{trend}' search failed: {e}", "WARN")
+                else:
+                    self._log("No trends fetched", "WARN")
+            except Exception as e:
+                self._log(f"Trending fetch failed: {e}", "WARN")
+
+        # 4. Feed mode — pull from people you follow
+        if self.config.filters.use_feed_mode:
+            try:
+                following = self._get_following_accounts()
+                if following:
+                    self._log(f"Feed mode: scanning {len(following)} followed accounts")
+                    max_accounts = min(len(following), self.config.filters.max_feed_accounts)
+                    for account in following[:max_accounts]:
+                        if not self._running:
+                            break
+                        try:
+                            tweets = self.xactions.get_tweets(account, limit=5)
+                            # Filter to videos only if configured
+                            if self.config.filters.feed_videos_only:
+                                tweets = [t for t in tweets if t.media_type == "video"]
+                            # Filter by engagement
+                            tweets = [t for t in tweets
+                                      if t.likes >= self.config.filters.feed_min_likes
+                                      and t.retweets >= self.config.filters.feed_min_retweets]
+                            all_tweets.extend(tweets)
+                        except XActionsError as e:
+                            log.debug(f"Failed to get tweets from @{account}: {e}")
+            except Exception as e:
+                self._log(f"Feed mode failed: {e}", "WARN")
+
         # Deduplicate within the batch by tweet_id
         seen_ids = set()
         unique = []
@@ -258,6 +315,38 @@ class BotEngine:
                 unique.append(t)
 
         return unique
+
+    def _get_following_accounts(self) -> list[str]:
+        """Get list of accounts you follow via XActions CLI."""
+        try:
+            result = subprocess.run(
+                ["xactions", "following", "TheRandomNote", "--limit", "100", "--json"],
+                capture_output=True, text=True, timeout=60, shell=False,
+            )
+            if result.returncode != 0:
+                self._log(f"Failed to get following list: {result.stderr[:200]}", "WARN")
+                return []
+
+            output = result.stdout.strip()
+            # Find JSON in output
+            json_start = -1
+            for i, char in enumerate(output):
+                if char == "[":
+                    json_start = i
+                    break
+            if json_start < 0:
+                return []
+
+            data = json.loads(output[json_start:])
+            accounts = []
+            for item in data:
+                username = item.get("username", item.get("screen_name", item.get("handle", "")))
+                if username:
+                    accounts.append(username.lstrip("@"))
+            return accounts
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            self._log(f"Following list parse error: {e}", "WARN")
+            return []
 
     def _has_excluded_terms(self, content: str) -> bool:
         content_lower = content.lower()
