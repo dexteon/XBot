@@ -40,7 +40,7 @@ class Classifier:
 
     def __init__(self, host: str = "http://localhost:11434"):
         self.host = host.rstrip("/")
-        self.timeout = 30  # per-tweet timeout
+        self.timeout = 120  # per-tweet timeout (8B model can take 60s+ on first load)
 
     def health_check(self, model: str) -> bool:
         """Check if Ollama is reachable and model is available."""

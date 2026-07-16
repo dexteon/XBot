@@ -4,11 +4,28 @@ import subprocess
 import json
 import time
 import logging
+import shutil
+import os
 from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
 
 log = logging.getLogger("xbot.xactions")
+
+
+def _find_xactions() -> str:
+    """Find xactions executable, handling Windows .cmd files."""
+    # Try plain name first (works if on PATH in the current shell)
+    found = shutil.which("xactions")
+    if found:
+        return found
+    # Try npm global bin directory
+    npm_bin = Path.home() / "AppData" / "Roaming" / "npm"
+    for ext in ["", ".cmd", ".ps1"]:
+        candidate = npm_bin / f"xactions{ext}"
+        if candidate.exists():
+            return str(candidate)
+    return "xactions"  # fallback, will error with helpful message
 
 
 @dataclass
@@ -39,7 +56,10 @@ class XActions:
 
     def _run(self, args: list[str], timeout: Optional[int] = None) -> tuple[str, int]:
         """Run xactions command, return (output, returncode)."""
-        cmd = ["xactions"] + args
+        xactions_bin = _find_xactions()
+        # On Windows, .cmd files need shell=True
+        use_shell = xactions_bin.endswith(".cmd")
+        cmd = [xactions_bin] + args if not use_shell else xactions_bin + " " + " ".join(args)
         t0 = time.time()
         try:
             result = subprocess.run(
@@ -47,7 +67,7 @@ class XActions:
                 capture_output=True,
                 text=True,
                 timeout=timeout or self.timeout,
-                shell=False,
+                shell=use_shell,
             )
             elapsed = (time.time() - t0) * 1000
             if result.returncode != 0:
@@ -148,41 +168,81 @@ class XActions:
         """Parse XActions CLI output into Tweet objects.
         
         Handles both JSON and text output formats.
+        XActions prints status lines before the JSON.
         """
         tweets = []
         if not output:
             return tweets
 
-        # Try JSON first
-        try:
-            data = json.loads(output)
-            if isinstance(data, list):
-                for item in data:
-                    tweets.append(self._tweet_from_json(item))
-            elif isinstance(data, dict) and "tweets" in data:
-                for item in data["tweets"]:
-                    tweets.append(self._tweet_from_json(item))
-            return tweets
-        except json.JSONDecodeError:
-            pass
+        # Try JSON first — find the first [ or { in the output
+        json_start = -1
+        for i, char in enumerate(output):
+            if char in "[{":
+                json_start = i
+                break
+        
+        if json_start >= 0:
+            json_str = output[json_start:]
+            # Find matching closing bracket
+            try:
+                data = json.loads(json_str)
+                if isinstance(data, list):
+                    for item in data:
+                        tweets.append(self._tweet_from_json(item))
+                elif isinstance(data, dict) and "tweets" in data:
+                    for item in data["tweets"]:
+                        tweets.append(self._tweet_from_json(item))
+                return tweets
+            except json.JSONDecodeError:
+                pass  # fall through to text parsing
 
         # Fall back to text parsing
         return self._parse_text_output(output)
 
     def _tweet_from_json(self, item: dict) -> Tweet:
         media = "none"
-        if item.get("has_video") or item.get("video"):
+        if item.get("has_video") or item.get("video") or item.get("videos"):
             media = "video"
-        elif item.get("has_image") or item.get("photos"):
+        elif item.get("has_image") or item.get("photos") or item.get("images"):
             media = "image"
+
+        def _int(val, default=0):
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                return default
+
+        # XActions uses 'author' for username, 'text' for content
+        username = str(
+            item.get("username", "")
+            or item.get("author", "")
+            or item.get("user", {}).get("screen_name", "")
+            or item.get("handle", "")
+        )
+
+        tweet_id = str(item.get("id", item.get("tweet_id", "")))
+
+        # Compute age in hours from timestamp
+        age_hours = 0.0
+        ts = item.get("timestamp", item.get("created_at", ""))
+        if ts:
+            try:
+                from datetime import datetime
+                # Parse ISO format
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                age_hours = (datetime.now(dt.tzinfo) - dt).total_seconds() / 3600
+            except (ValueError, TypeError):
+                pass
+
         return Tweet(
-            tweet_id=str(item.get("id", item.get("tweet_id", ""))),
-            username=item.get("username", item.get("user", {}).get("screen_name", "")),
-            content=item.get("text", item.get("content", "")),
+            tweet_id=tweet_id,
+            username=username,
+            content=str(item.get("text", item.get("content", ""))),
             media_type=media,
-            likes=item.get("likes", item.get("favorite_count", 0)),
-            retweets=item.get("retweets", item.get("retweet_count", 0)),
-            url=item.get("url", item.get("link", "")),
+            likes=_int(item.get("likes", item.get("favorite_count", 0))),
+            retweets=_int(item.get("retweets", item.get("retweet_count", item.get("retweets", 0)))),
+            age_hours=age_hours,
+            url=str(item.get("url", item.get("link", ""))),
         )
 
     def _parse_text_output(self, output: str) -> list[Tweet]:
