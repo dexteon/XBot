@@ -112,26 +112,36 @@ class XActions:
 
     # ── Actions ────────────────────────────────────────────────────
 
-    def like(self, tweet_id: str) -> bool:
-        """Like a tweet. Returns True on success."""
+    def like(self, tweet_id: str, tweet_url: str = "") -> bool:
+        """Like a tweet via browser automation. Returns True on success."""
+        from browser_actions import like_tweet
+        url = tweet_url or f"https://x.com/i/web/status/{tweet_id}"
         try:
-            output, rc = self._run(["like", tweet_id], timeout=30)
-            return rc == 0
-        except XActionsAuthError:
-            raise
-        except XActionsError as e:
-            log.error(f"Like failed for {tweet_id}: {e}")
+            success, msg = like_tweet(url)
+            if success:
+                log.info(f"Liked {tweet_id}")
+                return True
+            else:
+                log.warning(f"Like failed for {tweet_id}: {msg}")
+                return False
+        except Exception as e:
+            log.error(f"Like exception for {tweet_id}: {e}")
             return False
 
-    def retweet(self, tweet_id: str) -> bool:
-        """Retweet a tweet. Returns True on success."""
+    def retweet(self, tweet_id: str, tweet_url: str = "") -> bool:
+        """Retweet via browser automation. Returns True on success."""
+        from browser_actions import retweet_tweet
+        url = tweet_url or f"https://x.com/i/web/status/{tweet_id}"
         try:
-            output, rc = self._run(["retweet", tweet_id], timeout=30)
-            return rc == 0
-        except XActionsAuthError:
-            raise
-        except XActionsError as e:
-            log.error(f"Retweet failed for {tweet_id}: {e}")
+            success, msg = retweet_tweet(url)
+            if success:
+                log.info(f"Retweeted {tweet_id}")
+                return True
+            else:
+                log.warning(f"Retweet failed for {tweet_id}: {msg}")
+                return False
+        except Exception as e:
+            log.error(f"Retweet exception for {tweet_id}: {e}")
             return False
 
     def download_video(self, tweet_url: str, dest: str = ".") -> bool:

@@ -415,13 +415,13 @@ class BotEngine:
         if self.config.actions.like:
             self._anti_ban_delay()
             try:
-                if self.xactions.like(tweet.tweet_id):
+                if self.xactions.like(tweet.tweet_id, tweet.url):
                     self.db.increment_hourly()
                     self.db.log_action("like", tweet.tweet_id, tweet.username, "success")
                     self._log(f"LIKE   @{tweet.username} — above threshold")
                     actions_taken.append("liked")
                 else:
-                    self.db.log_action("like", tweet.tweet_id, tweet.username, "fail", "xactions returned error")
+                    self.db.log_action("like", tweet.tweet_id, tweet.username, "fail", "browser action failed")
                     self._log(f"ERROR  Like failed for {tweet.tweet_id}", "ERROR")
             except XActionsAuthError:
                 self._log("XActions auth expired during like!", "ERROR")
@@ -431,13 +431,13 @@ class BotEngine:
         if self.config.actions.retweet:
             self._anti_ban_delay()
             try:
-                if self.xactions.retweet(tweet.tweet_id):
+                if self.xactions.retweet(tweet.tweet_id, tweet.url):
                     self.db.increment_hourly()
                     self.db.log_action("retweet", tweet.tweet_id, tweet.username, "success")
                     self._log(f"RETWEET @{tweet.username} — above threshold")
                     actions_taken.append("retweeted")
                 else:
-                    self.db.log_action("retweet", tweet.tweet_id, tweet.username, "fail", "xactions returned error")
+                    self.db.log_action("retweet", tweet.tweet_id, tweet.username, "fail", "browser action failed")
                     self._log(f"ERROR  Retweet failed for {tweet.tweet_id}", "ERROR")
             except XActionsAuthError:
                 self._log("XActions auth expired during retweet!", "ERROR")
